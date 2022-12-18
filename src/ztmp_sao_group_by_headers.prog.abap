@@ -32,13 +32,20 @@ CLASS lcl_main IMPLEMENTATION.
              carrname TYPE scarr-carrname,
            END OF ts_group_key.
 
+    TYPES: BEGIN OF ts_totals,
+             fltime   TYPE spfli-fltime,
+             distance TYPE spfli-distance,
+           END OF ts_totals.
+
     TYPES: BEGIN OF ts_header.
              INCLUDE TYPE ts_group_key AS group_key.
+             INCLUDE TYPE ts_totals AS totals.
            TYPES:
-                    fltime   TYPE spfli-fltime,
-                    distance TYPE spfli-distance,
                   END OF ts_header.
 
+*&---------------------------------------------------------------------*
+*& POSITIONS TYPES
+*&---------------------------------------------------------------------*
     TYPES: BEGIN OF ts_position,
              index    TYPE sy-index,
              carrid   TYPE spfli-carrid,
@@ -47,23 +54,13 @@ CLASS lcl_main IMPLEMENTATION.
              distance TYPE spfli-distance,
            END OF ts_position.
 
-    TYPES tts_position TYPE STANDARD TABLE OF ts_position WITH EMPTY KEY.
+    TYPES tt_position TYPE STANDARD TABLE OF ts_position WITH EMPTY KEY.
 
     TYPES tth_position TYPE HASHED TABLE OF ts_position WITH UNIQUE KEY carrid connid.
 
-    TYPES: BEGIN OF ts_grp,
-             group_index TYPE int4,
-             group_size  TYPE int4.
-             INCLUDE TYPE ts_header AS header.
-           TYPES:
-                  END OF ts_grp.
-
-    TYPES: BEGIN OF ts_group.
-             INCLUDE TYPE ts_grp AS group.
-           TYPES:
-                    positions TYPE tth_position,
-                  END OF ts_group.
-
+*&---------------------------------------------------------------------*
+*& INPUT MERGE TYPES
+*&---------------------------------------------------------------------*
     TYPES: BEGIN OF ts_merge,
              carrid   TYPE ts_header-carrid,
              carrname TYPE ts_header-carrname,
@@ -72,13 +69,25 @@ CLASS lcl_main IMPLEMENTATION.
              distance TYPE ts_position-distance,
            END OF ts_merge.
 
-    TYPES tts_merge TYPE STANDARD TABLE OF ts_merge WITH EMPTY KEY.
-
     TYPES tth_merge TYPE HASHED TABLE OF ts_merge WITH UNIQUE KEY carrid connid.
 
-    TYPES tts_group TYPE STANDARD TABLE OF ts_group WITH EMPTY KEY.
+*&---------------------------------------------------------------------*
+*& OUTPUT GROUP TYPES
+*&---------------------------------------------------------------------*
+    TYPES: BEGIN OF ts_gheader.
+             INCLUDE TYPE ts_header AS header.
+           TYPES:
+                    group_index TYPE int4,
+                    group_size  TYPE int4,
+                  END OF ts_gheader.
 
-    TYPES tth_group TYPE HASHED TABLE OF ts_group WITH UNIQUE KEY carrid.
+    TYPES: BEGIN OF ts_group.
+             INCLUDE TYPE ts_gheader AS gheader.
+           TYPES:
+                    positions TYPE tth_position,
+                  END OF ts_group.
+
+    TYPES tth_group TYPE HASHED TABLE OF ts_group WITH UNIQUE KEY header-group_key.
 
 *&---------------------------------------------------------------------*
 *& GET DATA
@@ -99,17 +108,17 @@ CLASS lcl_main IMPLEMENTATION.
 *&---------------------------------------------------------------------*
 *& GET GROUPS
 *&---------------------------------------------------------------------*
-    DATA(lt_group) = VALUE tts_group(
+    DATA(lt_group) = VALUE tth_group(
 
       FOR GROUPS ls_group OF ls_merged IN lt_merged INDEX INTO l_ind
 
         GROUP BY (
-          group_index = GROUP INDEX
-          group_size  = GROUP SIZE
           group_key   = VALUE ts_group_key(
             carrid   = ls_merged-carrid
             carrname = ls_merged-carrname
           )
+          group_index = GROUP INDEX
+          group_size  = GROUP SIZE
         )
 
         ( VALUE #( "VALUE #( ... ) is needed here to use LET ... IN operator
@@ -128,14 +137,14 @@ CLASS lcl_main IMPLEMENTATION.
               )
 
             IN
-              group_index = ls_group-group_index
-              group_size  = ls_group-group_size
-              group_key   = ls_group-group_key
-              fltime      = l_total_time
-              distance    = l_total_distance
+              group_index     = ls_group-group_index
+              group_size      = ls_group-group_size
+              group_key       = ls_group-group_key
+              totals-fltime   = l_total_time
+              totals-distance = l_total_distance
 ***              positions   = VALUE #( FOR ls_pos_merged IN GROUP ls_group INDEX INTO l_pos_index "INDEX INTO doesn't work!
               positions   = REDUCE #(
-                INIT lt_pos TYPE tts_position
+                INIT lt_pos TYPE tt_position
                 FOR ls_pos_merged IN GROUP ls_group
                 NEXT lt_pos = VALUE #( BASE lt_pos
                   (
@@ -157,8 +166,8 @@ CLASS lcl_main IMPLEMENTATION.
 
     LOOP AT lt_group INTO DATA(ls_g).
 
-      lo_out->begin_section( ls_g-group-carrname
-        )->write( ls_g-group
+      lo_out->begin_section( ls_g-gheader-carrname
+        )->write( ls_g-gheader
         )->write( ls_g-positions
         )->end_section( ).
     ENDLOOP.
