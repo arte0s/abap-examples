@@ -122,32 +122,24 @@ CLASS lcl_main IMPLEMENTATION.
         )
 
         ( VALUE #( "VALUE #( ... ) is needed here to use LET ... IN operator
-
-            LET
-              l_total_time = REDUCE ts_position-fltime(
-                INIT l_time TYPE ts_position-fltime
-                FOR ls_time_merged IN GROUP ls_group
-                NEXT l_time = l_time + ls_time_merged-fltime
+              group_index = ls_group-group_index
+              group_size  = ls_group-group_size
+              group_key   = ls_group-group_key
+              totals      = REDUCE #(
+                INIT ls_totals TYPE ts_totals
+                FOR ls_grp IN GROUP ls_group
+                NEXT ls_totals = VALUE #(
+                  fltime   = ls_totals-fltime + ls_grp-fltime
+                  distance = ls_totals-distance + ls_grp-distance
+                )
               )
-
-              l_total_distance = REDUCE ts_position-fltime(
-                INIT l_distance TYPE ts_position-fltime
-                FOR ls_dist_merged IN GROUP ls_group
-                NEXT l_distance = l_distance + ls_dist_merged-distance
-              )
-
-            IN
-              group_index     = ls_group-group_index
-              group_size      = ls_group-group_size
-              group_key       = ls_group-group_key
-              totals-fltime   = l_total_time
-              totals-distance = l_total_distance
-***              positions   = VALUE #( FOR ls_pos_merged IN GROUP ls_group INDEX INTO l_pos_index "INDEX INTO doesn't work!
               positions   = REDUCE #(
-                INIT lt_pos TYPE tt_position
+                INIT
+                  lt_pos TYPE tt_position
+***                  ls_totals TYPE ts_totals
                 FOR ls_pos_merged IN GROUP ls_group
-                NEXT lt_pos = VALUE #( BASE lt_pos
-                  (
+                NEXT
+                  lt_pos = VALUE #( BASE lt_pos (
                     index    = COND #( WHEN lt_pos IS INITIAL THEN 1 ELSE lt_pos[ lines( lt_pos ) ]-index + 1 )
                     carrid   = ls_pos_merged-carrid
                     connid   = ls_pos_merged-connid
