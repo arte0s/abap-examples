@@ -134,9 +134,7 @@ CLASS lcl_main IMPLEMENTATION.
                 )
               )
               positions   = REDUCE #(
-                INIT
-                  lt_pos TYPE tt_position
-***                  ls_totals TYPE ts_totals
+                INIT lt_pos TYPE tt_position
                 FOR ls_pos_merged IN GROUP ls_group
                 NEXT
                   lt_pos = VALUE #( BASE lt_pos (
